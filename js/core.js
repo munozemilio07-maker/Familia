@@ -148,6 +148,14 @@ var Core = (function () {
   ];
   var DIAS_SIN_REPETIR = 3;
 
+  // ---- Rutinas de Liam (sin moneda: solo calcomanías) ----
+  var RUTINAS_LIAM = [
+    { id: 'dientes', nombre: 'Lavarse los dientes', icono: '🪥', color: 'teal' },
+    { id: 'juguetes', nombre: 'Recoger juguetes', icono: '🧸', color: 'orange' },
+    { id: 'pijama', nombre: 'Ponerse la pijama', icono: '🌙', color: 'purple' }
+  ];
+  var CALCOMANIAS = ['😄', '⭐', '🐻', '🦄', '🌈', '🚀', '🐶', '🦖', '🐥', '🎈'];
+
   var FRASCOS = ['gastar', 'ahorrar', 'compartir'];
   var NOMBRE_F = { gastar: 'Gastar', ahorrar: 'Ahorrar', compartir: 'Compartir' };
   var ICONO_F = { gastar: '🛍️', ahorrar: '🐷', compartir: '💝' };
@@ -238,8 +246,23 @@ var Core = (function () {
           return t;
         }),
         pesos: estadoPesos(),
-        dado: estadoDado()
+        dado: estadoDado(),
+        liam: estadoLiam()
       };
+    }
+
+    // =================== LIAM ===================
+    function calcomaniaDe(id) { // siempre la misma calcomanía para el mismo registro
+      var h = 0;
+      for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 9973;
+      return CALCOMANIAS[h % CALCOMANIAS.length];
+    }
+    function estadoLiam() {
+      var desde = sumarDias(hoy(), -6);
+      var filas = db.rows('Liam').filter(function (r) { return str(r.fecha).slice(0, 10) >= desde; }).map(function (r) {
+        var t = typed(r); t.calcomania = calcomaniaDe(t.id); return t;
+      });
+      return { rutinas: RUTINAS_LIAM, hoy: hoy(), semana: filas };
     }
 
     // =================== DADO DE ACTIVIDADES ===================
@@ -441,6 +464,28 @@ var Core = (function () {
           return { nombre: nombre, icono: str(d.icono).trim().slice(0, 300) || '🎁', precio: precio, repetible: yn(d.repetible !== false), activo: yn(d.activo !== false) };
         });
         return { estado: estado() };
+      },
+
+      // ---------- Liam ----------
+      // Sin PIN: es la vista de los niños. Una calcomanía por rutina por día.
+      calcomania: function (r) {
+        var rut = RUTINAS_LIAM.filter(function (x) { return x.id === r.rutina; })[0];
+        if (!rut) throw err('Rutina desconocida');
+        var puso = r.puso === 'Ed' ? 'Ed' : 'Papás';
+        var h = hoy();
+        var ya = db.rows('Liam').some(function (x) { return x.rutina === rut.id && str(x.fecha).slice(0, 10) === h; });
+        if (ya) throw err('Liam ya tiene su calcomanía de hoy en esa rutina');
+        var fila = { id: uid('l'), fecha: env.now(), rutina: rut.id, puso: puso };
+        db.append('Liam', fila);
+        var estrella = 0;
+        if (puso === 'Ed') { // Ed ayudó a su hermano: gana su estrella (máximo una por rutina al día)
+          var regla = find('Reglas', 'id', 'b12');
+          if (!regla || bool(regla.activa)) {
+            estrella = regla ? Math.abs(num(regla.valor)) : 1;
+            mover({ tipo: 'bono', ref_id: 'b12', icono: '🌟', descripcion: 'Le puso su calcomanía a Liam: ' + rut.nombre, delta: estrella, aplicado: estrella, quien: 'Ed', nota: '' });
+          }
+        }
+        return { calcomania: calcomaniaDe(fila.id), estrella: estrella, estado: estado() };
       },
 
       // ---------- Dado ----------
@@ -662,6 +707,6 @@ var Core = (function () {
 
   return {
     TABS: TABS, SEED: SEED, create: create, typed: typed,
-    CATS_DADO: CATS_DADO, FRASCOS: FRASCOS, NOMBRE_F: NOMBRE_F, ICONO_F: ICONO_F, diaSemana: diaSemana, sumarDias: sumarDias, domingoDe: domingoDe
+    CATS_DADO: CATS_DADO, RUTINAS_LIAM: RUTINAS_LIAM, FRASCOS: FRASCOS, NOMBRE_F: NOMBRE_F, ICONO_F: ICONO_F, diaSemana: diaSemana, sumarDias: sumarDias, domingoDe: domingoDe
   };
 })();
