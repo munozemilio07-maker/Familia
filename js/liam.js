@@ -24,7 +24,7 @@
     }
     var hoy = deHoy(), hechas = Object.keys(hoy).length, todas = hechas === l.rutinas.length;
 
-    var html = '<div class="liam">' + NUBES + A.nav('', back) +
+    var html = '<div class="liam-view">' + NUBES + A.nav('', back) +
       '<div class="liam-hero">' +
       '  <div class="balloon' + (todas ? ' party' : '') + '">🎈</div>' +
       '  <div class="liam-progress">' + l.rutinas.map(function (r) {

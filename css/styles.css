@@ -536,14 +536,14 @@ dialog::backdrop { background: rgba(0, 0, 0, .45); -webkit-backdrop-filter: blur
 /* =====================================================================
    Parte 5 — Vista de Liam (cielo, globo rojo, calcomanías)
    ===================================================================== */
-.liam {
+.liam-view {
   position: relative; overflow: hidden; margin: 0 -16px; padding: 0 16px 40px; min-height: 100vh; min-height: 100dvh;
   background: linear-gradient(180deg, #7cc8ff 0%, #b9e3ff 45%, #e8f6ff 100%);
 }
-@media (prefers-color-scheme: dark) { .liam { background: linear-gradient(180deg, #0b2a4a 0%, #13406b 50%, #1b5585 100%); } }
-.liam .nav { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none !important; }
-.liam .nav-btn { color: #0b4a85; }
-@media (prefers-color-scheme: dark) { .liam .nav-btn { color: #9fd4ff; } }
+@media (prefers-color-scheme: dark) { .liam-view { background: linear-gradient(180deg, #0b2a4a 0%, #13406b 50%, #1b5585 100%); } }
+.liam-view .nav { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none !important; }
+.liam-view .nav-btn { color: #0b4a85; }
+@media (prefers-color-scheme: dark) { .liam-view .nav-btn { color: #9fd4ff; } }
 
 .clouds i { position: absolute; background: rgba(255, 255, 255, .85); border-radius: 999px; filter: blur(.3px); animation: nube 26s linear infinite; }
 .clouds i::before, .clouds i::after { content: ""; position: absolute; background: inherit; border-radius: 50%; }
