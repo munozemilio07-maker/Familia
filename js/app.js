@@ -60,7 +60,7 @@
   // Un ícono puede ser emoji o URL de imagen
   function ico(v) {
     v = String(v || '');
-    return /^https?:\/\//.test(v) ? '<img src="' + esc(v) + '" alt="">' : esc(v);
+    return /^(https?:\/\/|data:image\/)/.test(v) ? '<img src="' + esc(v) + '" alt="">' : esc(v);
   }
   function moneda() {
     var c = (S.estado && S.estado.config) || {};
@@ -107,11 +107,13 @@
     render();
   }
 
+  var NO_REFRESCAR = { reparto: true, pinConfirm: true };
   var refrescando = false;
   var escrituras = 0; // sube con cada escritura; una lectura vieja no debe pisar una escritura nueva
   function escribiendo() {
     var a = document.activeElement;
-    return dlg.open || (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName));
+    // Tampoco se refresca en pantallas donde Ed arrastra monedas o se escribe un PIN
+    return dlg.open || NO_REFRESCAR[S.view] || (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName));
   }
   function refrescar(silencioso) {
     if (refrescando || escribiendo()) return Promise.resolve();
@@ -267,7 +269,8 @@
     var m = moneda();
     var e = S.estado;
     if (!e) return nav('Papás', atras()) + '<p class="empty">Cargando…</p>';
-    var tabs = [['registrar', 'Registrar'], ['historial', 'Historial'], ['ajustes', 'Ajustes']];
+    var tabs = [['registrar', 'Registrar'], ['historial', 'Historial'], ['frascos', 'Frascos'], ['ajustes', 'Ajustes']];
+    if (!TABS[S.tab]) S.tab = 'registrar';
     return '' +
       nav('Hola, ' + quien(), atras(), '<button class="nav-btn end" data-act="salir" aria-label="Cerrar modo papás">' + SVG.lock + '</button>') +
       '<div class="hero-card calm"><div class="hero">' +
@@ -598,10 +601,58 @@
     ACT[b.dataset.act](b.dataset, b);
   });
 
-  // Lo que necesitan las otras vistas (ed.js, y luego liam.js, dado.js…)
+  // ---------- Confirmación con PIN de un papá (canje de Ed, reparto del domingo…) ----------
+  // o: { icono (html), titulo, volver (vista), accion: function (pin) → Promise }
+  function pedirPin(o) {
+    S.pc = o; S.pcPin = ''; S.pcOcupado = false;
+    go('pinConfirm');
+  }
+  VIEWS.pinConfirm = function () {
+    var o = S.pc || {};
+    var dots = '';
+    for (var i = 0; i < 4; i++) dots += '<i class="' + (i < S.pcPin.length ? 'on' : '') + '"></i>';
+    var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'x', '0', '<'];
+    return '' +
+      nav('', '<button class="nav-btn" data-act="pcVolver">' + SVG.back + '<span>Volver</span></button>') +
+      '<section class="pin ed">' +
+      '  <div class="confirm-ico">' + (o.icono || '') + '</div>' +
+      '  <p class="subtitle" style="text-align:center;margin-top:12px">' + (o.titulo || '') + '<br>Papá o mamá: escribe el PIN</p>' +
+      '  <div class="dots" id="dots">' + dots + '</div>' +
+      '  <div class="keypad">' + keys.map(function (k) {
+        if (k === 'x') return '<button class="key blank" tabindex="-1"></button>';
+        if (k === '<') return '<button class="key text" data-act="pcBorrar" aria-label="Borrar">' + SVG.del + '</button>';
+        return '<button class="key" data-act="pcTecla" data-k="' + k + '">' + k + '</button>';
+      }).join('') + '</div>' +
+      '</section>';
+  };
+  ACT.pcVolver = function () { if (!S.pcOcupado) go((S.pc && S.pc.volver) || 'home'); };
+  ACT.pcBorrar = function () { if (S.pcOcupado) return; S.pcPin = S.pcPin.slice(0, -1); render(); };
+  ACT.pcTecla = function (d) {
+    if (S.pcOcupado || S.pcPin.length >= 4) return;
+    S.pcPin += d.k;
+    render();
+    if (S.pcPin.length < 4) return;
+    S.pcOcupado = true; // evita mandar dos veces mientras llega la respuesta
+    toast('Guardando…');
+    Promise.resolve(S.pc.accion(S.pcPin)).then(function () {
+      S.pcOcupado = false;
+      if (toastEl.textContent === 'Guardando…') toastEl.hidden = true;
+    }, function (err) {
+      S.pcOcupado = false;
+      S.pcPin = '';
+      render();
+      var dots = document.getElementById('dots');
+      if (dots) dots.classList.add('shake');
+      if (window.App.SON) window.App.SON.no();
+      toast(err.message);
+    });
+  };
+
+  // Lo que necesitan las otras vistas (ed.js, frascos.js, y luego liam.js, dado.js…)
   var afterRender = {};
   window.App = {
-    S: S, VIEWS: VIEWS, ACT: ACT, SVG: SVG, API: API, afterRender: afterRender,
+    S: S, VIEWS: VIEWS, ACT: ACT, TABS: TABS, SVG: SVG, API: API, afterRender: afterRender,
+    abrirHoja: abrirHoja, pedirPin: pedirPin, signo: signo, etiquetaDia: etiquetaDia,
     esc: esc, ico: ico, moneda: moneda, coin: coin, tile: tile, toast: toast, go: go, render: render, nav: nav, atras: atras,
     cell: cell, quien: quien, escribir: escribir, escribirDirecto: escribirDirecto, refrescar: refrescar
   };

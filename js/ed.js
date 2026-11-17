@@ -144,6 +144,7 @@
       '</section>' +
       metaHtml +
       '<section class="panel-card rutina">' + rutina + '</section>' +
+      (A.miniFrascos ? A.miniFrascos() : '') +
       '<button class="pill-btn" data-act="edTienda"><span class="glass">🛍️</span>' +
       '<span class="coins">' + coin() + ' ' + s + '</span>' +
       '<svg width="12" height="20" viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m2 2 8 8-8 8"/></svg></button>' +
@@ -170,26 +171,6 @@
         '<span class="nav-btn end"><span class="saldo-chip">' + coin() + ' ' + s + '</span></span>') +
       '<div class="ed"><div class="shop-head">' + tile('🛍️', 'red', 'lg') + '</div>' +
       '<div class="prizes">' + (cards || '<p class="empty">Sin premios</p>') + '</div></div>';
-  };
-
-  A.VIEWS.confirmar = function () {
-    var p = premio(S.canje);
-    if (!p) return A.VIEWS.tienda();
-    var dots = '';
-    for (var i = 0; i < 4; i++) dots += '<i class="' + (i < S.canjePin.length ? 'on' : '') + '"></i>';
-    var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'x', '0', '<'];
-    return '' +
-      A.nav('', '<button class="nav-btn" data-act="edTienda">' + A.SVG.back + '<span>Tienda</span></button>') +
-      '<section class="pin ed">' +
-      '  <div class="confirm-ico">' + tile(p.icono, colorDe(p.id), 'lg') + '</div>' +
-      '  <p class="subtitle" style="text-align:center;margin-top:12px">' + esc(p.nombre) + ' · <span class="price-line">' + coin() + ' ' + p.precio + '</span><br>Papá o mamá: escribe el PIN</p>' +
-      '  <div class="dots" id="dots">' + dots + '</div>' +
-      '  <div class="keypad">' + keys.map(function (k) {
-        if (k === 'x') return '<button class="key blank" tabindex="-1"></button>';
-        if (k === '<') return '<button class="key text" data-act="canjeBorrar" aria-label="Borrar">' + A.SVG.del + '</button>';
-        return '<button class="key" data-act="canjeTecla" data-k="' + k + '">' + k + '</button>';
-      }).join('') + '</div>' +
-      '</section>';
   };
 
   A.VIEWS.canjeado = function () {
@@ -243,43 +224,32 @@
       }
       if (b && b.dataset.buy) {
         dlg.close();
-        S.canje = p.id; S.canjePin = '';
-        A.go('confirmar');
+        canjear(p);
       }
     };
     dlg.showModal();
   };
 
-  A.ACT.canjeTecla = function (d) {
-    if (S.canjeOcupado || S.canjePin.length >= 4) return;
-    S.canjePin += d.k;
-    A.render();
-    if (S.canjePin.length < 4) return;
-    var p = premio(S.canje);
-    var pin = S.canjePin;
-    S.canjeOcupado = true; // evita cobrar dos veces mientras llega la respuesta
-    A.toast('Guardando…');
-    A.escribirDirecto('canjear', { pin: pin, premioId: p.id, quien: A.quien() || 'Papás' }).then(function (r) {
-      S.canjeOcupado = false;
-      S.estado = r.estado;
-      lsSet('ed_saldo_visto', String(r.estado.saldo)); // que no festeje la baja de saldo
-      S.canjeListo = p;
-      S.canje = null;
-      A.go('canjeado');
-      A.toast('¡Listo!', null, null, 1200);
-      SON.exito();
-      lluvia(22, coin());
-    }, function (err) {
-      S.canjeOcupado = false;
-      S.canjePin = '';
-      A.render();
-      var dots = document.getElementById('dots');
-      if (dots) dots.classList.add('shake');
-      SON.no();
-      A.toast(err.message);
+  function canjear(p) {
+    A.pedirPin({
+      icono: tile(p.icono, colorDe(p.id), 'lg'),
+      titulo: esc(p.nombre) + ' · <span class="price-line">' + coin() + ' ' + p.precio + '</span>',
+      volver: 'tienda',
+      accion: function (pin) {
+        return A.escribirDirecto('canjear', { pin: pin, premioId: p.id, quien: A.quien() || 'Papás' }).then(function (r) {
+          S.estado = r.estado;
+          lsSet('ed_saldo_visto', String(r.estado.saldo)); // que no festeje la baja de saldo
+          S.canjeListo = p;
+          A.go('canjeado');
+          A.toast('¡Listo!', null, null, 1200);
+          SON.exito();
+          lluvia(22, coin());
+        });
+      }
     });
-  };
-  A.ACT.canjeBorrar = function () { if (S.canjeOcupado) return; S.canjePin = S.canjePin.slice(0, -1); A.render(); };
+  }
 
+  A.SON = SON;
+  A.lluvia = lluvia;
   A.afterRender.ed = animarSaldoEd;
 })();

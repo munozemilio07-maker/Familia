@@ -363,3 +363,116 @@ dialog::backdrop { background: rgba(0, 0, 0, .45); -webkit-backdrop-filter: blur
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* =====================================================================
+   Parte 3 — Frascos de pesos
+   ===================================================================== */
+.jar { --jc: #ff9f0a; position: relative; width: 96px; margin: 0 auto; transition: transform .2s; }
+.jar-gastar { --jc: #ff9f0a; }
+.jar-ahorrar { --jc: #30d158; }
+.jar-compartir { --jc: #ff375f; }
+.jar-lid {
+  width: 66%; height: 13px; margin: 0 auto -2px; border-radius: 7px 7px 3px 3px; position: relative; z-index: 2;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--jc) 70%, white), var(--jc) 60%, color-mix(in srgb, var(--jc) 70%, black));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, .18);
+}
+.jar-glass {
+  position: relative; height: 126px; border-radius: 16px 16px 28px 28px; overflow: hidden;
+  background: linear-gradient(90deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, .12) 28%, rgba(255, 255, 255, .04) 70%, rgba(255, 255, 255, .35)),
+    color-mix(in srgb, var(--jc) 9%, transparent);
+  border: 2px solid color-mix(in srgb, var(--jc) 35%, rgba(255, 255, 255, .7));
+  box-shadow: inset 0 -14px 24px -10px color-mix(in srgb, var(--jc) 35%, transparent), 0 14px 26px -14px color-mix(in srgb, var(--jc) 70%, black);
+}
+.jar-glass::after {
+  content: ""; position: absolute; top: 10px; left: 9px; width: 8px; height: 70%; border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .8), rgba(255, 255, 255, 0)); pointer-events: none; z-index: 2;
+}
+.jar-coins i {
+  position: absolute; width: 18px; height: 18px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff8d0 0 10%, #f3c64a 32%, #c9971b 70%);
+  box-shadow: 0 0 0 2.5px #c9ced6 inset, 0 1px 2px rgba(0, 0, 0, .3);
+}
+.jar-label {
+  position: absolute; left: 50%; top: 30%; transform: translateX(-50%); z-index: 1;
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 22px;
+  background: rgba(255, 255, 255, .85); box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+}
+@media (prefers-color-scheme: dark) { .jar-label { background: rgba(40, 40, 48, .85); } }
+.jar.off { filter: grayscale(1); opacity: .5; }
+.jar.xs { width: 44px; }
+.jar.xs .jar-lid { height: 6px; border-radius: 4px 4px 2px 2px; }
+.jar.xs .jar-glass { height: 54px; border-radius: 8px 8px 13px 13px; border-width: 1.5px; }
+.jar.xs .jar-coins i { transform: scale(.45); transform-origin: 0 100%; }
+.jar.xs .jar-label { width: 22px; height: 22px; border-radius: 7px; font-size: 12px; top: 26%; }
+.jar.xs .jar-glass::after { width: 4px; left: 5px; top: 6px; }
+.jar.over { transform: scale(1.08); }
+.jar.gulp { animation: gulp .35s; }
+@keyframes gulp { 50% { transform: scale(1.12) rotate(-3deg); } }
+.jar.triste { animation: wiggle .5s 2; }
+@keyframes wiggle { 25% { transform: rotate(-6deg); } 75% { transform: rotate(6deg); } }
+.jar .bubble { position: absolute; top: -26px; right: -8px; font-size: 26px; z-index: 3; animation: pop .5s; }
+.jar.grow { animation: pop .8s .4s both cubic-bezier(.3, 1.6, .5, 1); }
+
+.jars-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px; align-items: end; }
+.jars-row.tiny { display: flex; justify-content: center; gap: 10px; margin: 0; }
+.jar-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.jar-amt { font-family: var(--round); font-size: 28px; font-weight: 800; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
+
+/* moneda de peso (bimetálica) */
+.peso {
+  display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; flex: none; touch-action: none; user-select: none; -webkit-user-select: none;
+  background: radial-gradient(circle at 38% 32%, #fff8d0 0 8%, #f3c64a 26%, #d6a52a 48%, #b8891a 56%, #e9edf2 57%, #c4cad3 78%, #9aa1ab 100%);
+  box-shadow: 0 6px 14px -4px rgba(0, 0, 0, .35), inset 0 -3px 6px rgba(0, 0, 0, .18);
+}
+.peso b { font-family: var(--round); font-size: 15px; font-weight: 800; color: #7a5a06; text-shadow: 0 1px 0 rgba(255, 255, 255, .6); }
+.peso.drag { cursor: grab; }
+.peso.sel { box-shadow: 0 0 0 3px var(--card), 0 0 0 6px #0a84ff, 0 6px 14px -4px rgba(0, 0, 0, .35); }
+.peso.ghost { position: fixed; z-index: 50; pointer-events: none; transform: scale(1.15); }
+
+.tray { flex-wrap: wrap; justify-content: center; gap: 10px; min-height: 92px; touch-action: none; }
+.tray-ok { font-size: 40px; }
+.reparto .jars-row.drop .jar { cursor: pointer; }
+.undo { width: 40px; height: 40px; border-radius: 50%; background: var(--card); box-shadow: var(--shadow); border: 1px solid var(--border); font-size: 18px; font-weight: 700; color: var(--label-2); }
+.undo-sp { height: 40px; }
+.pill-btn.green { justify-content: center; background: linear-gradient(135deg, #3ddc6a, #1fb553 50%, #0f8a3c); box-shadow: 0 14px 30px -10px rgba(31, 181, 83, .65), inset 0 1px 0 rgba(255, 255, 255, .3); }
+.pill-btn.green .glass { font-weight: 800; }
+.pill-btn.gold { background: linear-gradient(135deg, #ffd84a, #f5a700 55%, #c97a00); box-shadow: 0 14px 30px -10px rgba(245, 167, 0, .7), inset 0 1px 0 rgba(255, 255, 255, .4); margin-top: 8px; animation: latido 1.8s ease-in-out infinite; }
+.pill-btn.gold .peso { width: 46px; height: 46px; }
+.pill-btn.gold .peso b { font-size: 13px; }
+@keyframes latido { 50% { transform: scale(1.03); } }
+.pill-btn.disabled { filter: grayscale(.8); opacity: .45; }
+
+.mini-jars { justify-content: space-around; }
+.mini-jar { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.mini-jar b { font-family: var(--round); font-size: 17px; font-weight: 800; }
+.mini-jars.due { box-shadow: 0 0 0 3px #ffd84a, var(--shadow); }
+.due-dot { font-size: 26px; animation: latido 1.2s ease-in-out infinite; }
+
+.meta-card .ti.lg img { object-fit: cover; }
+.bar.green i { background: linear-gradient(90deg, #30d158, #0fa968); }
+
+.countdown { flex-direction: column; align-items: stretch; gap: 12px; }
+.cd-num { display: flex; align-items: baseline; justify-content: center; gap: 6px; }
+.cd-num b { font-family: var(--round); font-size: 46px; font-weight: 800; line-height: 1; }
+.cd-num span { color: var(--label-2); font-weight: 600; }
+.days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.day { position: relative; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; font-size: 20px; background: var(--fill); }
+.day.past { opacity: .4; }
+.day.past::after { content: ""; position: absolute; left: 15%; right: 15%; top: 50%; height: 3px; border-radius: 2px; background: var(--red); transform: rotate(-35deg); }
+.day.today { box-shadow: 0 0 0 2.5px #ff9f0a; background: rgba(255, 159, 10, .15); }
+.day.sunday { background: linear-gradient(145deg, rgba(255, 214, 10, .35), rgba(255, 159, 10, .3)); font-size: 22px; }
+
+.hero-card.bank { padding: 22px; text-align: center; margin-bottom: 8px; background: radial-gradient(120% 90% at 85% -10%, rgba(255, 255, 255, .25), transparent 55%), linear-gradient(150deg, #0f5132, #1fb553 120%); animation: pop .8s cubic-bezier(.3, 1.6, .5, 1); }
+.bank-ico { font-size: 44px; }
+.bank-plus { font-family: var(--round); font-size: 64px; font-weight: 800; letter-spacing: -2px; line-height: 1.05; }
+.bank-txt { font-weight: 700; opacity: .9; }
+
+.balances { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+.bal { display: flex; flex-direction: column; gap: 6px; padding: 14px 12px; border-radius: 20px; background: var(--card); box-shadow: var(--shadow); border: 1px solid var(--border); }
+.bal-n { font-size: 13px; color: var(--label-2); font-weight: 600; }
+.bal b { font-family: var(--round); font-size: 24px; font-weight: 800; letter-spacing: -.4px; }
+
+.foto-pick { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 6px 0 16px; text-align: center; }
+.foto-pick label { cursor: pointer; }
+.foto-pick .ti.xl img { object-fit: cover; }
+.peso-slot { width: 56px; height: 56px; border-radius: 50%; flex: none; border: 2px dashed var(--label-3); opacity: .5; }

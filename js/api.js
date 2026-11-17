@@ -23,12 +23,13 @@ var API = (function () {
   function cargarPrueba() {
     var data = memoria;
     if (!data) { try { data = JSON.parse(lsGet(KEY_DB)); } catch (e) {} }
-    if (!data) {
-      data = {};
-      Object.keys(Core.TABS).forEach(function (t) {
-        data[t] = (Core.SEED[t] || []).map(function (r) { return aTexto(t, r); });
-      });
-    }
+    data = data || {};
+    // Pestañas o claves nuevas que no existían cuando se crearon los datos de prueba
+    Object.keys(Core.TABS).forEach(function (t) {
+      if (!data[t]) data[t] = (Core.SEED[t] || []).map(function (r) { return aTexto(t, r); });
+    });
+    var claves = data.Config.map(function (r) { return r.clave; });
+    (Core.SEED.Config || []).forEach(function (r) { if (claves.indexOf(r.clave) < 0) data.Config.push(aTexto('Config', r)); });
     memoria = data;
     return data;
   }
@@ -52,6 +53,7 @@ var API = (function () {
     };
   }
   function ahoraLocal() {
+    if (window.__relojPrueba) return window.__relojPrueba; // solo para pruebas: fija la fecha del modo prueba
     var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
   }
