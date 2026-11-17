@@ -10,8 +10,16 @@ var API = (function () {
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
 
+  var KEY_PRACTICA = 'familia_practica';       // '1' = modo práctica encendido (la URL real se conserva)
+  var KEY_FECHA = 'familia_practica_fecha';     // fecha simulada del modo práctica (ej. un domingo)
+
   function url() { return lsGet(KEY_URL); }
-  function modo() { var u = url(); return !u ? null : (u === 'prueba' ? 'prueba' : 'real'); }
+  function practica() { return lsGet(KEY_PRACTICA) === '1'; }
+  function modo() {
+    var u = url();
+    if (practica() || u === 'prueba') return 'prueba';
+    return u ? 'real' : null;
+  }
 
   // --- Modo prueba ---------------------------------------------------------
   var memoria = null; // por si el navegador no deja usar localStorage
@@ -53,9 +61,12 @@ var API = (function () {
     };
   }
   function ahoraLocal() {
-    if (window.__relojPrueba) return window.__relojPrueba; // solo para pruebas: fija la fecha del modo prueba
+    if (window.__relojPrueba) return window.__relojPrueba; // solo para pruebas automáticas
     var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
-    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+    var hora = 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+    var f = lsGet(KEY_FECHA); // en práctica se puede "simular" otro día
+    if (f) return f + hora;
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + hora;
   }
 
   // --- Llamada común -------------------------------------------------------
@@ -89,6 +100,12 @@ var API = (function () {
     modo: modo,
     configurado: function () { return !!modo(); },
     usarUrl: function (u) { lsSet(KEY_URL, u); },
-    borrarPrueba: function () { memoria = null; lsSet(KEY_DB, null); }
+    borrarPrueba: function () { memoria = null; lsSet(KEY_DB, null); lsSet(KEY_FECHA, null); },
+    // Modo práctica: para enseñar la app sin tocar la Sheet. La URL real se queda guardada.
+    practica: practica,
+    tieneReal: function () { var u = url(); return !!u && u !== 'prueba'; },
+    usarPractica: function (on) { lsSet(KEY_PRACTICA, on ? '1' : null); if (!on) lsSet(KEY_FECHA, null); },
+    fechaPractica: function () { return lsGet(KEY_FECHA); },
+    simularFecha: function (f) { lsSet(KEY_FECHA, f || null); }
   };
 })();

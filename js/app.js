@@ -108,12 +108,13 @@
   }
 
   var NO_REFRESCAR = { reparto: true, pinConfirm: true };
+  var CON_PIN = { papas: true, dado: true }; // pantallas que solo ven los papás
   var refrescando = false;
   var escrituras = 0; // sube con cada escritura; una lectura vieja no debe pisar una escritura nueva
   function escribiendo() {
     var a = document.activeElement;
     // Tampoco se refresca en pantallas donde Ed arrastra monedas o se escribe un PIN
-    return dlg.open || NO_REFRESCAR[S.view] || (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName));
+    return dlg.open || NO_REFRESCAR[S.view] || S.ocupado || (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName));
   }
   function refrescar(silencioso) {
     if (refrescando || escribiendo()) return Promise.resolve();
@@ -162,8 +163,8 @@
   function render() {
     var v = S.view;
     if (!API.configurado()) v = 'conexion';
-    else if (v === 'papas' && !pinGuardado()) v = 'pin';
-    else if (v === 'papas' && !quien()) v = 'quien';
+    else if (CON_PIN[v] && !pinGuardado()) v = 'pin';
+    else if (CON_PIN[v] && !quien()) v = 'quien';
     var y = window.scrollY;
     app.innerHTML = VIEWS[v]();
     if (S.view === v) window.scrollTo(0, y);
@@ -234,7 +235,8 @@
       cell({ act: 'irPapas', icon: '<span class="ti t-indigo" style="color:#5e5ce6">' + SVG.lock + '</span>', title: 'Papás', sub: 'Registrar, historial y ajustes', chev: true }) +
       '</div>' +
       '</section>' +
-      (API.modo() === 'prueba' ? '<p class="badge">Modo prueba · los datos viven solo en este celular</p>' : '');
+      // Sin avisos aquí: el modo práctica solo se ve y se apaga en Papás → Ajustes
+      '';
   };
 
   VIEWS.pin = function () {
@@ -301,6 +303,7 @@
       });
     }
     return '' +
+      (window.App && window.App.dadoCard ? window.App.dadoCard() : '') +
       '<h2 class="group-header">Bonos</h2>' +
       '<div class="group">' + bonos.map(fila).join('') + '</div>' +
       '<h2 class="group-header">Deducciones <span class="aside"><span class="meter">' + meter + '</span> hoy ' + e.deduccionesHoy + ' de ' + tope + '</span></h2>' +
@@ -357,6 +360,7 @@
         cell({ act: 'editarRegla', data: { tipo: tipo }, cls: 'link', title: b ? 'Agregar bono' : 'Agregar deducción' });
     }
     return '' +
+      grupoPractica() +
       '<h2 class="group-header">Moneda</h2>' +
       '<div class="group">' +
       '  <div class="cell field"><label for="cfgNombre">Nombre</label><input id="cfgNombre" value="' + esc(m.nombre) + '" maxlength="30"></div>' +
@@ -390,9 +394,26 @@
       '<div class="group">' +
       cell({ title: API.modo() === 'prueba' ? 'Modo prueba' : 'Google Sheet', trail: API.modo() === 'prueba' ? 'Solo este celular' : 'Conectada' }) +
       cell({ act: 'cambiarConexion', cls: 'link', title: 'Cambiar conexión' }) +
-      (API.modo() === 'prueba' ? cell({ act: 'borrarPrueba', cls: 'destructive', title: 'Borrar datos de prueba' }) : '') +
       '</div>';
   };
+
+  // Grupo "Modo práctica" (va arriba en Ajustes)
+  function grupoPractica() {
+    if (API.modo() !== 'prueba') {
+      return '<h2 class="group-header">Modo práctica</h2><div class="group">' +
+        cell({ icon: tile('🎓', 'yellow'), title: 'Enseñar la app', sub: 'Para practicar con Vane o con Ed sin tocar tus datos reales' }) +
+        cell({ act: 'entrarPractica', cls: 'link', title: 'Entrar a modo práctica' }) +
+        '</div>';
+    }
+    return '<h2 class="group-header">Modo práctica</h2><div class="group">' +
+      cell({ icon: tile('🎓', 'yellow'), title: 'Estás practicando', sub: 'Nada se guarda en tu Sheet · PIN 1234' }) +
+      (API.fechaPractica()
+        ? cell({ icon: tile('📅', 'yellow'), title: 'Simulando: ' + esc(API.fechaPractica()) }) + cell({ act: 'fechaReal', cls: 'link', title: 'Volver a la fecha de hoy' })
+        : cell({ act: 'simularDomingo', cls: 'link', title: 'Simular que ya es domingo (para el reparto)' })) +
+      cell({ act: 'borrarPrueba', cls: 'destructive', title: 'Borrar datos de práctica (empezar de cero)' }) +
+      (API.tieneReal() ? cell({ act: 'salirPractica', cls: 'link', title: 'Salir y volver a mis datos reales' }) : '') +
+      '</div><p class="group-footer">Lo de práctica se guarda solo en este celular.</p>';
+  }
 
   // ---------- animación del saldo ----------
   function animarSaldo() {
@@ -472,6 +493,26 @@
     if (!confirm('¿Cambiar la conexión? Tendrás que volver a pegar la URL.')) return;
     API.usarUrl(null); olvidarPin(); S.estado = null; S.saldoMostrado = null; go('conexion');
   };
+  function cambiarModo(practica) {
+    API.usarPractica(practica);
+    olvidarPin();
+    try { localStorage.removeItem('ed_saldo_visto'); } catch (e) {}
+    S.estado = null; S.saldoMostrado = null; S.tab = 'registrar';
+    go('home');
+    refrescar();
+  }
+  ACT.entrarPractica = function () {
+    if (!confirm('¿Entrar a modo práctica? Podrás enseñar la app sin tocar tus datos reales. El PIN de práctica es 1234.')) return;
+    cambiarModo(true);
+    toast('Modo práctica · PIN 1234');
+  };
+  ACT.salirPractica = function () { cambiarModo(false); toast('De vuelta a tus datos reales'); };
+  ACT.simularDomingo = function () {
+    var hoy = (S.estado && S.estado.pesos && S.estado.pesos.hoy) || new Date().toISOString().slice(0, 10);
+    API.simularFecha(Core.sumarDias(hoy, (7 - Core.diaSemana(hoy)) % 7 || 7));
+    S.estado = null; refrescar(); toast('Ahora la app cree que es domingo');
+  };
+  ACT.fechaReal = function () { API.simularFecha(null); S.estado = null; refrescar(); toast('Fecha de hoy'); };
   ACT.borrarPrueba = function () {
     if (!confirm('¿Borrar todos los datos de prueba de este celular?')) return;
     API.borrarPrueba(); olvidarPin(); S.estado = null; S.saldoMostrado = null; go('home'); refrescar();
@@ -654,7 +695,7 @@
     S: S, VIEWS: VIEWS, ACT: ACT, TABS: TABS, SVG: SVG, API: API, afterRender: afterRender,
     abrirHoja: abrirHoja, pedirPin: pedirPin, signo: signo, etiquetaDia: etiquetaDia,
     esc: esc, ico: ico, moneda: moneda, coin: coin, tile: tile, toast: toast, go: go, render: render, nav: nav, atras: atras,
-    cell: cell, quien: quien, escribir: escribir, escribirDirecto: escribirDirecto, refrescar: refrescar
+    cell: cell, quien: quien, pin: pinGuardado, escribir: escribir, escribirDirecto: escribirDirecto, refrescar: refrescar
   };
 
   // ---------- arranque ----------
@@ -663,7 +704,7 @@
   setInterval(function () { if (document.visibilityState === 'visible' && API.configurado()) refrescar(true); }, 30000);
   document.addEventListener('visibilitychange', function () {
     // Si el celular se bloquea o cambias de app, el modo papás se cierra
-    if (document.visibilityState === 'hidden' && (S.view === 'papas' || S.view === 'quien')) {
+    if (document.visibilityState === 'hidden' && (CON_PIN[S.view] || S.view === 'quien')) {
       olvidarPin();
       if (dlg.open) dlg.close();
       go('home');

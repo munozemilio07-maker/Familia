@@ -137,6 +137,17 @@ var Core = (function () {
   }
 
   // ---- Frascos ----
+  // ---- Dado de actividades: una cara por categoría ----
+  var CATS_DADO = [
+    { n: 1, nombre: 'Sílabas y lectura', icono: '🔤', color: 'blue' },
+    { n: 2, nombre: 'Juego físico', icono: '🏃', color: 'orange' },
+    { n: 3, nombre: 'Rato especial', icono: '💛', color: 'pink' },
+    { n: 4, nombre: 'Hermano mayor', icono: '🧒', color: 'teal' },
+    { n: 5, nombre: 'Valentía', icono: '🦁', color: 'yellow' },
+    { n: 6, nombre: 'Calma y emociones', icono: '🌈', color: 'purple' }
+  ];
+  var DIAS_SIN_REPETIR = 3;
+
   var FRASCOS = ['gastar', 'ahorrar', 'compartir'];
   var NOMBRE_F = { gastar: 'Gastar', ahorrar: 'Ahorrar', compartir: 'Compartir' };
   var ICONO_F = { gastar: '🛍️', ahorrar: '🐷', compartir: '💝' };
@@ -226,8 +237,31 @@ var Core = (function () {
           t.anulado = !!an[m.id];
           return t;
         }),
-        pesos: estadoPesos()
+        pesos: estadoPesos(),
+        dado: estadoDado()
       };
+    }
+
+    // =================== DADO DE ACTIVIDADES ===================
+    function estadoDado() {
+      var desde = sumarDias(hoy(), -6); // últimos 7 días, contando hoy
+      var semana = {};
+      CATS_DADO.forEach(function (c) { semana[c.n] = 0; });
+      db.rows('Dado').forEach(function (t) {
+        if (t.estado === 'hecho' && str(t.fecha).slice(0, 10) >= desde) semana[num(t.categoria)] = (semana[num(t.categoria)] || 0) + 1;
+      });
+      return {
+        categorias: CATS_DADO,
+        actividades: db.rows('Actividades').map(typed),
+        recientes: db.rows('Dado').slice(-40).reverse().map(typed),
+        semana: semana
+      };
+    }
+    // Actividades que ya salieron en los últimos 3 días (hoy, ayer y antier) no se repiten
+    function salieronHace() {
+      var desde = sumarDias(hoy(), -(DIAS_SIN_REPETIR - 1)), s = {};
+      db.rows('Dado').forEach(function (t) { if (str(t.fecha).slice(0, 10) >= desde) s[t.actividad_id] = true; });
+      return s;
     }
 
     // =================== FRASCOS DE PESOS (independientes de la moneda de conducta) ===================
@@ -409,6 +443,70 @@ var Core = (function () {
         return { estado: estado() };
       },
 
+      // ---------- Dado ----------
+      tirarDado: function (r) {
+        checkPin(r.pin);
+        var cat = Math.round(num(r.categoria)); // 0 = todas
+        var lugar = str(r.lugar), minutos = Math.round(num(r.minutos)), liam = str(r.liam);
+        var vistas = salieronHace();
+        var candidatas = db.rows('Actividades').filter(function (a) {
+          if (!bool(a.activa) || vistas[a.id]) return false;
+          if (cat && num(a.categoria) !== cat) return false;
+          if (lugar && a.lugar !== lugar) return false;
+          if (minutos && num(a.minutos) !== minutos) return false;
+          if (liam === 'con' && !bool(a.con_liam)) return false;
+          if (liam === 'sin' && bool(a.con_liam)) return false;
+          return true;
+        });
+        if (!candidatas.length) {
+          throw err('No hay actividades con esos filtros que no hayan salido en los últimos ' + DIAS_SIN_REPETIR + ' días. Prueba quitando un filtro.');
+        }
+        // Con "todas", primero se escoge la categoría al azar y luego la actividad: así ninguna categoría domina
+        var porCat = {};
+        candidatas.forEach(function (a) { (porCat[num(a.categoria)] = porCat[num(a.categoria)] || []).push(a); });
+        var cats = Object.keys(porCat);
+        var lista = porCat[cats[Math.floor(Math.random() * cats.length)]];
+        var a = lista[Math.floor(Math.random() * lista.length)];
+        var t = { id: uid('d'), fecha: env.now(), actividad_id: a.id, categoria: num(a.categoria), estado: 'salió', quien: quien(r.quien) };
+        db.append('Dado', t);
+        return { tirada: typed(t), actividad: typed(a), estado: estado() };
+      },
+
+      // "¡Hecho!": queda en el historial y le da su estrella a Ed
+      dadoHecho: function (r) {
+        checkPin(r.pin);
+        var t = find('Dado', 'id', r.tiradaId);
+        if (!t) throw err('No encontré esa tirada');
+        if (t.estado === 'hecho') throw err('Esa actividad ya estaba marcada como hecha');
+        var a = find('Actividades', 'id', t.actividad_id) || { texto: 'Actividad del dado' };
+        var regla = find('Reglas', 'id', 'b10');
+        var valor = regla && bool(regla.activa) ? Math.abs(num(regla.valor)) : 1;
+        db.upsert('Dado', 'id', { id: t.id, estado: 'hecho' });
+        var mov = mover({
+          tipo: 'bono', ref_id: 'b10', icono: '🎲', descripcion: 'Actividad del dado: ' + a.texto,
+          delta: valor, aplicado: valor, quien: quien(r.quien), nota: ''
+        });
+        return { movimiento: typed(mov), estado: estado() };
+      },
+
+      guardarActividad: function (r) {
+        checkPin(r.pin);
+        var d = r.actividad || {};
+        var existente = d.id ? find('Actividades', 'id', d.id) : null;
+        var texto = str(d.texto).trim().slice(0, 160);
+        if (!texto) throw err('Escribe la actividad');
+        var cat = Math.round(num(d.categoria));
+        if (cat < 1 || cat > 6) throw err('Escoge una categoría');
+        var minutos = Math.round(num(d.minutos));
+        if ([5, 10, 15].indexOf(minutos) < 0) throw err('Escoge 5, 10 o 15 minutos');
+        db.upsert('Actividades', 'id', {
+          id: existente ? existente.id : uid('a'), categoria: cat, texto: texto,
+          lugar: d.lugar === 'afuera' ? 'afuera' : 'adentro', minutos: minutos,
+          con_liam: yn(!!d.con_liam), activa: yn(d.activa !== false)
+        });
+        return { estado: estado() };
+      },
+
       // ---------- Frascos ----------
       empezarFrascos: function (r) {
         checkPin(r.pin);
@@ -564,6 +662,6 @@ var Core = (function () {
 
   return {
     TABS: TABS, SEED: SEED, create: create, typed: typed,
-    FRASCOS: FRASCOS, NOMBRE_F: NOMBRE_F, ICONO_F: ICONO_F, diaSemana: diaSemana, sumarDias: sumarDias, domingoDe: domingoDe
+    CATS_DADO: CATS_DADO, FRASCOS: FRASCOS, NOMBRE_F: NOMBRE_F, ICONO_F: ICONO_F, diaSemana: diaSemana, sumarDias: sumarDias, domingoDe: domingoDe
   };
 })();
